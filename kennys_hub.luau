@@ -1,3 +1,4 @@
+--[[ 👑 KENNY'S AUTOMATION HUB - PROTECTED BUILD ]]
 local _0x1a = string.char
 local _0x2b = table.concat
 local _0x3c = {
