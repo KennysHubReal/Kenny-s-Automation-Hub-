@@ -13,6 +13,7 @@ local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -29,11 +30,11 @@ end
 local Modules = ReplicatedStorage:WaitForChild("Modules")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
-local Checkout = Remotes:WaitForChild("Checkout")
-local PamphletsRemotes = Remotes:WaitForChild("Pamphlets")
-local EnclosuresRemotes = Remotes:WaitForChild("Enclosures")
-local BatRemotes = Remotes:WaitForChild("Bat")
-local MessRemotes = Remotes:WaitForChild("Mess")
+local Checkout = Remotes:FindFirstChild("Checkout")
+local PamphletsRemotes = Remotes:FindFirstChild("Pamphlets")
+local EnclosuresRemotes = Remotes:FindFirstChild("Enclosures")
+local BatRemotes = Remotes:FindFirstChild("Bat")
+local MessRemotes = Remotes:FindFirstChild("Mess")
 
 local CheckoutController = require(Modules:WaitForChild("CheckoutController"))
 local CheckoutGamepad = require(Modules:WaitForChild("CheckoutGamepad"))
@@ -42,21 +43,21 @@ local PedestrianController = require(Modules:WaitForChild("PedestrianController"
 
 local WalkersTable = debug.getupvalue(PedestrianController.walkerNearRay, 1)
 
-local ScanCurrentRE = Checkout:WaitForChild("ScanCurrent")
-local AcceptPresentedPaymentRE = Checkout:WaitForChild("AcceptPresentedPayment")
-local SubmitCashChangeRE = Checkout:WaitForChild("SubmitCashChange")
-local SubmitCardAmountRE = Checkout:WaitForChild("SubmitCardAmount")
+local ScanCurrentRE = Checkout and Checkout:FindFirstChild("ScanCurrent")
+local AcceptPresentedPaymentRE = Checkout and Checkout:FindFirstChild("AcceptPresentedPayment")
+local SubmitCashChangeRE = Checkout and Checkout:FindFirstChild("SubmitCashChange")
+local SubmitCardAmountRE = Checkout and Checkout:FindFirstChild("SubmitCardAmount")
 
-local GrabPamphletRE = PamphletsRemotes:WaitForChild("Grab")
-local GivePamphletRE = PamphletsRemotes:WaitForChild("Give")
+local GrabPamphletRE = PamphletsRemotes and PamphletsRemotes:FindFirstChild("Grab")
+local GivePamphletRE = PamphletsRemotes and PamphletsRemotes:FindFirstChild("Give")
 
-local MaintainRE = EnclosuresRemotes:WaitForChild("Maintain")
-local CleanMessRE = MessRemotes:WaitForChild("Clean")
-local SwingBatRE = BatRemotes:WaitForChild("Swing")
+local MaintainRE = EnclosuresRemotes and EnclosuresRemotes:FindFirstChild("Maintain")
+local CleanMessRE = MessRemotes and MessRemotes:FindFirstChild("Clean")
+local SwingBatRE = BatRemotes and BatRemotes:FindFirstChild("Swing")
 
 -- Automation Config
 local Config = {
-    AutoCheckout = true,
+    AutoCheckout = false, -- Default to OFF per user request
     ScanDelay = 0.08,
     PaymentDelay = 0.12,
     LastScanTime = 0,
@@ -66,7 +67,7 @@ local Config = {
     -- Pamphlet Settings
     AutoPamphlets = false,
     AutoTeleportWalkers = false,
-    AutoGrabPamphlets = true,
+    AutoGrabPamphlets = false,
     LastPamphletTime = 0,
     LastGrabTime = 0,
     LastTeleportTime = 0,
@@ -80,7 +81,8 @@ local Config = {
     AutoBatThieves = false,
     LastSwingTime = 0,
 
-    ToggleKey = Enum.KeyCode.RightControl
+    ToggleKey = Enum.KeyCode.RightControl,
+    AutoLoadConfig = true
 }
 
 -- Denominations for Cash Change
@@ -166,14 +168,20 @@ ScreenGui.Parent = parentGui
 -- ==========================================
 -- CINEMATIC LOADING CARD & PROGRESS BAR
 -- ==========================================
-local Splash = Instance.new("Frame")
+local Splash = Instance.new("CanvasGroup")
 Splash.Name = "Splash"
 Splash.Size = UDim2.new(0, 420, 0, 220)
 Splash.Position = UDim2.new(0.5, -210, 0.45, -110)
 Splash.BackgroundColor3 = Color3.fromRGB(11, 13, 19)
 Splash.BorderSizePixel = 0
+Splash.Visible = false
+Splash.GroupTransparency = 1
 Splash.ClipsDescendants = true
 Splash.Parent = ScreenGui
+
+local SplashScale = Instance.new("UIScale")
+SplashScale.Scale = 0.88
+SplashScale.Parent = Splash
 
 local SplashCorner = Instance.new("UICorner")
 SplashCorner.CornerRadius = UDim.new(0, 16)
@@ -263,6 +271,236 @@ BarGrad.Color = ColorSequence.new{
     ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 220, 255))
 }
 BarGrad.Parent = BarFill
+
+-- ==========================================
+-- SUPPORTED GAMES CATALOG MODAL
+-- ==========================================
+local SupportedGames = {
+    {
+        Name = "Pet Store Tycoon",
+        PlaceId = 118845698633260,
+        Icon = "rbxassetid://99408848325145",
+        Perks = "Auto Cashier • Fast Flyers • Enclosure Care • Shoplifter Defense",
+        IsCurrent = true
+    }
+}
+
+local CatalogModal = Instance.new("CanvasGroup")
+CatalogModal.Name = "SupportedGamesCatalog"
+CatalogModal.Size = UDim2.new(0, 520, 0, 220)
+CatalogModal.Position = UDim2.new(0.5, -260, 0.45, -110)
+CatalogModal.BackgroundColor3 = Color3.fromRGB(11, 13, 19)
+CatalogModal.BorderSizePixel = 0
+CatalogModal.GroupTransparency = 1
+CatalogModal.ClipsDescendants = true
+CatalogModal.Parent = ScreenGui
+
+local CatalogScale = Instance.new("UIScale")
+CatalogScale.Scale = 0.88
+CatalogScale.Parent = CatalogModal
+
+local CatalogCorner = Instance.new("UICorner")
+CatalogCorner.CornerRadius = UDim.new(0, 16)
+CatalogCorner.Parent = CatalogModal
+
+local CatalogStroke = Instance.new("UIStroke")
+CatalogStroke.Color = Color3.fromRGB(0, 210, 255)
+CatalogStroke.Thickness = 1.8
+CatalogStroke.Parent = CatalogModal
+
+local CatalogGlow = Instance.new("UIGradient")
+CatalogGlow.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 230, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(160, 90, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 230, 255))
+}
+CatalogGlow.Parent = CatalogStroke
+
+local CatalogBadge = Instance.new("TextLabel")
+CatalogBadge.Text = "👑 KENNY'S AUTOMATION HUB"
+CatalogBadge.Font = Enum.Font.GothamBlack
+CatalogBadge.TextSize = 16
+CatalogBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+CatalogBadge.BackgroundTransparency = 1
+CatalogBadge.Position = UDim2.new(0, 20, 0, 16)
+CatalogBadge.Size = UDim2.new(1, -40, 0, 22)
+CatalogBadge.TextXAlignment = Enum.TextXAlignment.Left
+CatalogBadge.Parent = CatalogModal
+
+local CatalogSub = Instance.new("TextLabel")
+CatalogSub.Text = "SUPPORTED GAMES CATALOG  •  SELECT OR AUTO-LAUNCH"
+CatalogSub.Font = Enum.Font.GothamBold
+CatalogSub.TextSize = 10
+CatalogSub.TextColor3 = Color3.fromRGB(0, 210, 255)
+CatalogSub.BackgroundTransparency = 1
+CatalogSub.Position = UDim2.new(0, 20, 0, 38)
+CatalogSub.Size = UDim2.new(1, -40, 0, 14)
+CatalogSub.TextXAlignment = Enum.TextXAlignment.Left
+CatalogSub.Parent = CatalogModal
+
+local CatalogDiv = Instance.new("Frame")
+CatalogDiv.Size = UDim2.new(1, -40, 0, 1)
+CatalogDiv.Position = UDim2.new(0, 20, 0, 58)
+CatalogDiv.BackgroundColor3 = Color3.fromRGB(30, 38, 54)
+CatalogDiv.BorderSizePixel = 0
+CatalogDiv.Parent = CatalogModal
+
+local GamesScroll = Instance.new("ScrollingFrame")
+GamesScroll.Name = "GamesScroll"
+GamesScroll.Size = UDim2.new(1, -40, 0, 86)
+GamesScroll.Position = UDim2.new(0, 20, 0, 68)
+GamesScroll.BackgroundTransparency = 1
+GamesScroll.BorderSizePixel = 0
+GamesScroll.ScrollBarThickness = 3
+GamesScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 210, 255)
+GamesScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+GamesScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+GamesScroll.Parent = CatalogModal
+
+local GamesLayout = Instance.new("UIListLayout")
+GamesLayout.Padding = UDim.new(0, 8)
+GamesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+GamesLayout.Parent = GamesScroll
+
+-- Bottom Action Bar
+local BottomBar = Instance.new("Frame")
+BottomBar.Size = UDim2.new(1, -40, 0, 42)
+BottomBar.Position = UDim2.new(0, 20, 1, -54)
+BottomBar.BackgroundTransparency = 1
+BottomBar.Parent = CatalogModal
+
+local CountdownLabel = Instance.new("TextLabel")
+CountdownLabel.Text = "Select a game to launch automation..."
+CountdownLabel.Font = Enum.Font.GothamMedium
+CountdownLabel.TextSize = 11
+CountdownLabel.TextColor3 = Color3.fromRGB(160, 180, 210)
+CountdownLabel.BackgroundTransparency = 1
+CountdownLabel.Position = UDim2.new(0, 4, 0, 0)
+CountdownLabel.Size = UDim2.new(1, -150, 1, 0)
+CountdownLabel.TextXAlignment = Enum.TextXAlignment.Left
+CountdownLabel.Parent = BottomBar
+
+local LaunchBtn = Instance.new("TextButton")
+LaunchBtn.Name = "LaunchBtn"
+LaunchBtn.Text = "Launch Hub ▶"
+LaunchBtn.Font = Enum.Font.GothamBold
+LaunchBtn.TextSize = 12
+LaunchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+LaunchBtn.BackgroundColor3 = Color3.fromRGB(0, 190, 240)
+LaunchBtn.Size = UDim2.new(0, 130, 0, 34)
+LaunchBtn.Position = UDim2.new(1, -130, 0.5, -17)
+LaunchBtn.BorderSizePixel = 0
+LaunchBtn.Parent = BottomBar
+
+local LaunchCorner = Instance.new("UICorner")
+LaunchCorner.CornerRadius = UDim.new(0, 8)
+LaunchCorner.Parent = LaunchBtn
+
+local LaunchGrad = Instance.new("UIGradient")
+LaunchGrad.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 220, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(140, 70, 255))
+}
+LaunchGrad.Parent = LaunchBtn
+
+local triggerInitiationLoad
+
+for i, gameData in ipairs(SupportedGames) do
+    local isCurrent = (game.PlaceId == gameData.PlaceId) or (gameData.Name == "Pet Store Tycoon")
+    
+    local card = Instance.new("TextButton")
+    card.Name = "GameCard_" .. gameData.Name
+    card.Text = ""
+    card.Size = UDim2.new(1, -6, 0, 66)
+    card.BackgroundColor3 = isCurrent and Color3.fromRGB(16, 23, 36) or Color3.fromRGB(14, 17, 26)
+    card.BorderSizePixel = 0
+    card.AutoButtonColor = false
+    card.LayoutOrder = i
+    card.Parent = GamesScroll
+
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 10)
+    cardCorner.Parent = card
+
+    local cardStroke = Instance.new("UIStroke")
+    cardStroke.Color = isCurrent and Color3.fromRGB(0, 210, 255) or Color3.fromRGB(30, 38, 54)
+    cardStroke.Thickness = isCurrent and 1.2 or 1
+    cardStroke.Parent = card
+
+    -- Game Icon Thumbnail
+    local iconBg = Instance.new("Frame")
+    iconBg.Size = UDim2.new(0, 48, 0, 48)
+    iconBg.Position = UDim2.new(0, 9, 0.5, -24)
+    iconBg.BackgroundColor3 = Color3.fromRGB(22, 26, 38)
+    iconBg.BorderSizePixel = 0
+    iconBg.Parent = card
+
+    local iconBgCorner = Instance.new("UICorner")
+    iconBgCorner.CornerRadius = UDim.new(0, 8)
+    iconBgCorner.Parent = iconBg
+
+    local iconImg = Instance.new("ImageLabel")
+    iconImg.Size = UDim2.new(1, 0, 1, 0)
+    iconImg.BackgroundTransparency = 1
+    iconImg.Image = gameData.Icon
+    iconImg.Parent = iconBg
+
+    local iconImgCorner = Instance.new("UICorner")
+    iconImgCorner.CornerRadius = UDim.new(0, 8)
+    iconImgCorner.Parent = iconImg
+
+    if gameData.PlaceId then
+        task.spawn(function()
+            local s, r = pcall(function() return game:GetService("MarketplaceService"):GetProductInfo(gameData.PlaceId) end)
+            if s and r and r.IconImageAssetId and r.IconImageAssetId > 0 then
+                iconImg.Image = "rbxassetid://" .. string.format("%.0f", r.IconImageAssetId)
+            end
+        end)
+    end
+
+    -- Text Details
+    local title = Instance.new("TextLabel")
+    title.Text = gameData.Name
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 14
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.BackgroundTransparency = 1
+    title.Position = UDim2.new(0, 68, 0, 0)
+    title.Size = UDim2.new(1, -190, 1, 0)
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = card
+
+    if isCurrent then
+        local cardAction = Instance.new("TextButton")
+        cardAction.Text = "LAUNCH ▶"
+        cardAction.Font = Enum.Font.GothamBold
+        cardAction.TextSize = 11
+        cardAction.TextColor3 = Color3.fromRGB(255, 255, 255)
+        cardAction.BackgroundColor3 = Color3.fromRGB(0, 190, 235)
+        cardAction.Size = UDim2.new(0, 88, 0, 28)
+        cardAction.Position = UDim2.new(1, -98, 0.5, -14)
+        cardAction.BorderSizePixel = 0
+        cardAction.Parent = card
+
+        local actionCorner = Instance.new("UICorner")
+        actionCorner.CornerRadius = UDim.new(0, 7)
+        actionCorner.Parent = cardAction
+
+        local actionGrad = Instance.new("UIGradient")
+        actionGrad.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 220, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(140, 70, 255))
+        }
+        actionGrad.Parent = cardAction
+
+        cardAction.MouseButton1Click:Connect(function()
+            if triggerInitiationLoad then triggerInitiationLoad() end
+        end)
+        card.MouseButton1Click:Connect(function()
+            if triggerInitiationLoad then triggerInitiationLoad() end
+        end)
+    end
+end
 
 -- ==========================================
 -- MAIN HUD WINDOW
@@ -423,6 +661,8 @@ local function createTabContent(name)
     scroll.BorderSizePixel = 0
     scroll.ScrollBarThickness = 3
     scroll.ScrollBarImageColor3 = Color3.fromRGB(55, 70, 100)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     scroll.Parent = page
 
     local list = Instance.new("UIListLayout")
@@ -440,7 +680,6 @@ local function switchTab(selected)
     if currentTab == selected then return end
     currentTab = selected
 
-    -- Animate Tab Buttons
     for name, btn in pairs(TabButtons) do
         if name == selected then
             TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -455,7 +694,6 @@ local function switchTab(selected)
         end
     end
 
-    -- Hide all other tabs immediately so they never overlay
     for name, _ in pairs(TabButtons) do
         local container = Tabs[name .. "_Container"]
         if container then
@@ -466,7 +704,6 @@ local function switchTab(selected)
         end
     end
 
-    -- Animate selected tab smoothly in
     local targetContainer = Tabs[selected .. "_Container"]
     if targetContainer then
         targetContainer.Position = UDim2.new(0, 10, 0, 18)
@@ -509,6 +746,8 @@ end
 -- ==========================================
 -- UI HELPER CREATORS
 -- ==========================================
+local ToggleRefs = {}
+
 local function createToggle(parent, title, defaultState, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 42)
@@ -560,18 +799,29 @@ local function createToggle(parent, title, defaultState, callback)
     pillCorner.Parent = pill
 
     local state = defaultState
-    toggleBtn.MouseButton1Click:Connect(function()
-        state = not state
+
+    local function setValue(newState, skipCallback)
+        state = newState
         TweenService:Create(pill, TweenInfo.new(0.18), {
             Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
         }):Play()
         TweenService:Create(toggleBtn, TweenInfo.new(0.18), {
             BackgroundColor3 = state and Color3.fromRGB(0, 200, 140) or Color3.fromRGB(40, 48, 65)
         }):Play()
-        callback(state)
+        if not skipCallback then
+            callback(state)
+        end
+    end
+
+    toggleBtn.MouseButton1Click:Connect(function()
+        setValue(not state)
     end)
 
-    return frame
+    return {
+        Frame = frame,
+        SetValue = setValue,
+        GetValue = function() return state end
+    }
 end
 
 local function createActionBtn(parent, text, color, callback)
@@ -661,6 +911,7 @@ local function createKeybind(parent, title, defaultKey, callback)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
 
+    local currentKey = defaultKey
     local keyBtn = Instance.new("TextButton")
     keyBtn.Text = defaultKey.Name
     keyBtn.Font = Enum.Font.GothamBold
@@ -676,6 +927,15 @@ local function createKeybind(parent, title, defaultKey, callback)
     keyCorner.CornerRadius = UDim.new(0, 6)
     keyCorner.Parent = keyBtn
 
+    local function setKey(newKey, skipCallback)
+        currentKey = newKey
+        keyBtn.Text = newKey.Name
+        keyBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
+        if not skipCallback then
+            callback(newKey)
+        end
+    end
+
     local listening = false
     keyBtn.MouseButton1Click:Connect(function()
         listening = true
@@ -686,13 +946,182 @@ local function createKeybind(parent, title, defaultKey, callback)
     UserInputService.InputBegan:Connect(function(input, processed)
         if listening and not processed and input.UserInputType == Enum.UserInputType.Keyboard then
             listening = false
-            keyBtn.Text = input.KeyCode.Name
-            keyBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
-            callback(input.KeyCode)
+            setKey(input.KeyCode)
         end
     end)
 
-    return frame
+    return {
+        Frame = frame,
+        SetKey = setKey,
+        GetKey = function() return currentKey end
+    }
+end
+
+local function createDropdown(parent, title, defaultOption, options, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 42)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 24, 36)
+    frame.BorderSizePixel = 0
+    frame.ClipsDescendants = false
+    frame.ZIndex = 10
+    frame.Parent = parent
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 8)
+    c.Parent = frame
+
+    local s = Instance.new("UIStroke")
+    s.Color = Color3.fromRGB(38, 48, 70)
+    s.Thickness = 1
+    s.Parent = frame
+
+    local label = Instance.new("TextLabel")
+    label.Text = title
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 11
+    label.TextColor3 = Color3.fromRGB(220, 230, 245)
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.Size = UDim2.new(1, -150, 0, 42)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 11
+    label.Parent = frame
+
+    local dropBtn = Instance.new("TextButton")
+    dropBtn.Text = (defaultOption or "Select Config") .. "  ▼"
+    dropBtn.Font = Enum.Font.GothamBold
+    dropBtn.TextSize = 10
+    dropBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
+    dropBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+    dropBtn.Size = UDim2.new(0, 130, 0, 26)
+    dropBtn.Position = UDim2.new(1, -138, 0, 8)
+    dropBtn.BorderSizePixel = 0
+    dropBtn.ZIndex = 12
+    dropBtn.Parent = frame
+
+    local dropCorner = Instance.new("UICorner")
+    dropCorner.CornerRadius = UDim.new(0, 6)
+    dropCorner.Parent = dropBtn
+
+    local dropStroke = Instance.new("UIStroke")
+    dropStroke.Color = Color3.fromRGB(45, 58, 85)
+    dropStroke.Thickness = 1
+    dropStroke.Parent = dropBtn
+
+    local menu = Instance.new("ScrollingFrame")
+    menu.Name = "DropdownMenu"
+    menu.Size = UDim2.new(0, 130, 0, 0)
+    menu.Position = UDim2.new(1, -138, 0, 36)
+    menu.BackgroundColor3 = Color3.fromRGB(16, 20, 30)
+    menu.BorderSizePixel = 0
+    menu.Visible = false
+    menu.ZIndex = 30
+    menu.ScrollBarThickness = 3
+    menu.ScrollBarImageColor3 = Color3.fromRGB(0, 210, 255)
+    menu.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    menu.CanvasSize = UDim2.new(0, 0, 0, 0)
+    menu.Parent = frame
+
+    local menuCorner = Instance.new("UICorner")
+    menuCorner.CornerRadius = UDim.new(0, 6)
+    menuCorner.Parent = menu
+
+    local menuStroke = Instance.new("UIStroke")
+    menuStroke.Color = Color3.fromRGB(0, 210, 255)
+    menuStroke.Thickness = 1
+    menuStroke.Parent = menu
+
+    local menuLayout = Instance.new("UIListLayout")
+    menuLayout.Padding = UDim.new(0, 2)
+    menuLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    menuLayout.Parent = menu
+
+    local isOpen = false
+    local currentSelected = defaultOption
+    local currentOptions = options or {}
+
+    local function updateOptions(newOptions)
+        currentOptions = newOptions or {}
+        for _, child in ipairs(menu:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
+        end
+
+        local totalHeight = 0
+        for i, optName in ipairs(currentOptions) do
+            local itemBtn = Instance.new("TextButton")
+            itemBtn.Text = optName
+            itemBtn.Font = Enum.Font.GothamMedium
+            itemBtn.TextSize = 10
+            itemBtn.TextColor3 = (optName == currentSelected) and Color3.fromRGB(0, 230, 255) or Color3.fromRGB(200, 215, 235)
+            itemBtn.BackgroundColor3 = (optName == currentSelected) and Color3.fromRGB(25, 36, 54) or Color3.fromRGB(20, 25, 38)
+            itemBtn.Size = UDim2.new(1, -4, 0, 24)
+            itemBtn.BorderSizePixel = 0
+            itemBtn.ZIndex = 31
+            itemBtn.Parent = menu
+
+            local itemCorner = Instance.new("UICorner")
+            itemCorner.CornerRadius = UDim.new(0, 4)
+            itemCorner.Parent = itemBtn
+
+            itemBtn.MouseButton1Click:Connect(function()
+                currentSelected = optName
+                dropBtn.Text = optName .. "  ▼"
+                isOpen = false
+                menu.Visible = false
+                menu.Size = UDim2.new(0, 130, 0, 0)
+                updateOptions(currentOptions)
+                if callback then callback(optName) end
+            end)
+
+            totalHeight = totalHeight + 26
+        end
+
+        local calcHeight = math.min(totalHeight, 110)
+        if isOpen then
+            menu.Size = UDim2.new(0, 130, 0, calcHeight)
+        end
+    end
+
+    local function toggleMenu()
+        isOpen = not isOpen
+        if isOpen then
+            menu.Visible = true
+            local totalH = math.min(#currentOptions * 26, 110)
+            TweenService:Create(menu, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 130, 0, totalH)
+            }):Play()
+            dropBtn.Text = currentSelected .. "  ▲"
+        else
+            local t = TweenService:Create(menu, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 130, 0, 0)
+            })
+            t:Play()
+            t.Completed:Connect(function()
+                if not isOpen then menu.Visible = false end
+            end)
+            dropBtn.Text = currentSelected .. "  ▼"
+        end
+    end
+
+    dropBtn.MouseButton1Click:Connect(toggleMenu)
+    updateOptions(currentOptions)
+
+    return {
+        Frame = frame,
+        SetOptions = function(newOpts, selectOpt)
+            if selectOpt then currentSelected = selectOpt end
+            dropBtn.Text = currentSelected .. "  ▼"
+            updateOptions(newOpts)
+        end,
+        GetSelected = function() return currentSelected end,
+        SetSelected = function(optName)
+            currentSelected = optName
+            dropBtn.Text = optName .. "  ▼"
+            updateOptions(currentOptions)
+        end
+    }
 end
 
 -- ==========================================
@@ -701,7 +1130,7 @@ end
 -- 1. Register Page
 local RegisterStatusLabel = createStatusCard(Tabs["Register"], "CASHIER SYSTEM STATUS", "Manning Register • Waiting for Customer")
 
-createToggle(Tabs["Register"], "Auto Checkout (Scan & Pay)", Config.AutoCheckout, function(val)
+ToggleRefs.AutoCheckout = createToggle(Tabs["Register"], "Auto Checkout (Scan & Pay)", Config.AutoCheckout, function(val)
     Config.AutoCheckout = val
 end)
 
@@ -714,16 +1143,16 @@ end)
 -- 2. Pamphlet Page
 local PamphletStatusLabel = createStatusCard(Tabs["Pamphlets"], "PAMPHLET STATUS", "Count: 0 | Idle")
 
-createToggle(Tabs["Pamphlets"], "⚡ Fast Auto-Teleport to Walkers & Give", Config.AutoTeleportWalkers, function(val)
+ToggleRefs.AutoTeleportWalkers = createToggle(Tabs["Pamphlets"], "⚡ Fast Auto-Teleport to Walkers & Give", Config.AutoTeleportWalkers, function(val)
     Config.AutoTeleportWalkers = val
     Config.AutoPamphlets = val
 end)
 
-createToggle(Tabs["Pamphlets"], "Auto-Give Pamphlets (Aura Only)", Config.AutoPamphlets, function(val)
+ToggleRefs.AutoPamphlets = createToggle(Tabs["Pamphlets"], "Auto-Give Pamphlets (Aura Only)", Config.AutoPamphlets, function(val)
     Config.AutoPamphlets = val
 end)
 
-createToggle(Tabs["Pamphlets"], "Auto-Refill At Pamphlet Stand", Config.AutoGrabPamphlets, function(val)
+ToggleRefs.AutoGrabPamphlets = createToggle(Tabs["Pamphlets"], "Auto-Refill At Pamphlet Stand", Config.AutoGrabPamphlets, function(val)
     Config.AutoGrabPamphlets = val
 end)
 
@@ -740,11 +1169,11 @@ end)
 -- 3. Store & Pets Page
 createStatusCard(Tabs["Store & Pets"], "STORE AUTOMATION", "Enclosure feeds, water refills & floor cleanup")
 
-createToggle(Tabs["Store & Pets"], "Auto-Care Pet Enclosures (Feed/Water)", Config.AutoPetCare, function(val)
+ToggleRefs.AutoPetCare = createToggle(Tabs["Store & Pets"], "Auto-Care Pet Enclosures (Feed/Water)", Config.AutoPetCare, function(val)
     Config.AutoPetCare = val
 end)
 
-createToggle(Tabs["Store & Pets"], "Auto-Clean Spills & Messes", Config.AutoCleanMesses, function(val)
+ToggleRefs.AutoCleanMesses = createToggle(Tabs["Store & Pets"], "Auto-Clean Spills & Messes", Config.AutoCleanMesses, function(val)
     Config.AutoCleanMesses = val
 end)
 
@@ -766,7 +1195,7 @@ end)
 -- 4. Security Page
 createStatusCard(Tabs["Security"], "STORE DEFENSE", "Equips bat and stops shoplifters")
 
-createToggle(Tabs["Security"], "Auto-Swing Bat at Thieves (Anti-Theft)", Config.AutoBatThieves, function(val)
+ToggleRefs.AutoBatThieves = createToggle(Tabs["Security"], "Auto-Swing Bat at Thieves (Anti-Theft)", Config.AutoBatThieves, function(val)
     Config.AutoBatThieves = val
 end)
 
@@ -777,8 +1206,230 @@ end)
 -- 5. Settings Page
 createStatusCard(Tabs["Settings"], "HUB SETTINGS & KEYBINDS", "Customize hotkeys and menu controls")
 
-createKeybind(Tabs["Settings"], "Toggle UI Keybind", Config.ToggleKey, function(newKey)
+local KeybindRef = createKeybind(Tabs["Settings"], "Toggle UI Keybind", Config.ToggleKey, function(newKey)
     Config.ToggleKey = newKey
+end)
+
+-- CONFIG MANAGER (SAVE & LOAD WITH DROPDOWN)
+createStatusCard(Tabs["Settings"], "CONFIG MANAGER", "Select config, save, or load custom settings")
+
+local activeConfig = "default"
+
+local function getSavedConfigs()
+    local configs = { "default" }
+    if listfiles then
+        local s, files = pcall(function() return listfiles() end)
+        if s and files then
+            for _, f in ipairs(files) do
+                local name = f:match("KennysHub_([%w_%-]+)%.json$") or f:match("([%w_%-]+)%.json$")
+                if name and not table.find(configs, name) then
+                    table.insert(configs, name)
+                end
+            end
+        end
+    end
+    return configs
+end
+
+local ConfigDropdownRef
+
+local ConfigStatusLabel = Instance.new("TextLabel")
+ConfigStatusLabel.Text = "Active Config: default"
+ConfigStatusLabel.Font = Enum.Font.GothamMedium
+ConfigStatusLabel.TextSize = 10
+ConfigStatusLabel.TextColor3 = Color3.fromRGB(160, 180, 210)
+ConfigStatusLabel.BackgroundTransparency = 1
+ConfigStatusLabel.Size = UDim2.new(1, 0, 0, 18)
+ConfigStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+ConfigStatusLabel.Parent = Tabs["Settings"]
+
+ConfigDropdownRef = createDropdown(Tabs["Settings"], "Selected Config", "default", getSavedConfigs(), function(selected)
+    activeConfig = selected
+    ConfigStatusLabel.Text = "Selected Config: " .. activeConfig
+    ConfigStatusLabel.TextColor3 = Color3.fromRGB(0, 210, 255)
+end)
+
+local configRow = Instance.new("Frame")
+configRow.Size = UDim2.new(1, 0, 0, 34)
+configRow.BackgroundTransparency = 1
+configRow.Parent = Tabs["Settings"]
+
+local configRowLayout = Instance.new("UIListLayout")
+configRowLayout.FillDirection = Enum.FillDirection.Horizontal
+configRowLayout.Padding = UDim.new(0, 6)
+configRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+configRowLayout.Parent = configRow
+
+local saveBtn = Instance.new("TextButton")
+saveBtn.Text = "💾 Save"
+saveBtn.Font = Enum.Font.GothamBold
+saveBtn.TextSize = 11
+saveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+saveBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 130)
+saveBtn.Size = UDim2.new(0.32, -4, 1, 0)
+saveBtn.BorderSizePixel = 0
+saveBtn.Parent = configRow
+
+local saveCorner = Instance.new("UICorner")
+saveCorner.CornerRadius = UDim.new(0, 7)
+saveCorner.Parent = saveBtn
+
+local loadBtn = Instance.new("TextButton")
+loadBtn.Text = "📂 Load"
+loadBtn.Font = Enum.Font.GothamBold
+loadBtn.TextSize = 11
+loadBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+loadBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 230)
+loadBtn.Size = UDim2.new(0.32, -4, 1, 0)
+loadBtn.BorderSizePixel = 0
+loadBtn.Parent = configRow
+
+local loadCorner = Instance.new("UICorner")
+loadCorner.CornerRadius = UDim.new(0, 7)
+loadCorner.Parent = loadBtn
+
+local resetBtn = Instance.new("TextButton")
+resetBtn.Text = "🔄 Reset"
+resetBtn.Font = Enum.Font.GothamBold
+resetBtn.TextSize = 11
+resetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+resetBtn.BackgroundColor3 = Color3.fromRGB(48, 56, 76)
+resetBtn.Size = UDim2.new(0.36, -4, 1, 0)
+resetBtn.BorderSizePixel = 0
+resetBtn.Parent = configRow
+
+local resetCorner = Instance.new("UICorner")
+resetCorner.CornerRadius = UDim.new(0, 7)
+resetCorner.Parent = resetBtn
+
+ToggleRefs.AutoLoadConfig = createToggle(Tabs["Settings"], "Auto-Load Active Config on Launch", Config.AutoLoadConfig, function(val)
+    Config.AutoLoadConfig = val
+end)
+
+local function getConfigFileName(configName)
+    return "KennysHub_" .. (configName or "default") .. ".json"
+end
+
+local function saveConfig()
+    local fileName = getConfigFileName(activeConfig)
+    local data = {
+        ConfigName = activeConfig,
+        AutoCheckout = Config.AutoCheckout,
+        AutoTeleportWalkers = Config.AutoTeleportWalkers,
+        AutoPamphlets = Config.AutoPamphlets,
+        AutoGrabPamphlets = Config.AutoGrabPamphlets,
+        AutoPetCare = Config.AutoPetCare,
+        AutoCleanMesses = Config.AutoCleanMesses,
+        AutoBatThieves = Config.AutoBatThieves,
+        ToggleKey = Config.ToggleKey.Name,
+        AutoLoadConfig = Config.AutoLoadConfig
+    }
+    local json = HttpService:JSONEncode(data)
+    if writefile then
+        local s, err = pcall(function() writefile(fileName, json) end)
+        if s then
+            ConfigStatusLabel.Text = "✅ Saved config: " .. activeConfig
+            ConfigStatusLabel.TextColor3 = Color3.fromRGB(0, 230, 150)
+            if ConfigDropdownRef then ConfigDropdownRef.SetOptions(getSavedConfigs(), activeConfig) end
+        else
+            ConfigStatusLabel.Text = "❌ Save error: " .. tostring(err)
+            ConfigStatusLabel.TextColor3 = Color3.fromRGB(240, 90, 90)
+        end
+    else
+        ConfigStatusLabel.Text = "⚠️ writefile() unavailable"
+        ConfigStatusLabel.TextColor3 = Color3.fromRGB(255, 180, 50)
+    end
+end
+
+local function loadConfig(configName, silent)
+    local targetConfig = configName or activeConfig
+    local fileName = getConfigFileName(targetConfig)
+    local json
+    if isfile and readfile and isfile(fileName) then
+        local s, res = pcall(function() return readfile(fileName) end)
+        if s then json = res end
+    end
+    if not json then
+        if not silent then
+            ConfigStatusLabel.Text = "⚠️ No config found for '" .. targetConfig .. "'"
+            ConfigStatusLabel.TextColor3 = Color3.fromRGB(255, 180, 50)
+        end
+        return false
+    end
+
+    local s, data = pcall(function() return HttpService:JSONDecode(json) end)
+    if not s or type(data) ~= "table" then
+        if not silent then
+            ConfigStatusLabel.Text = "❌ Invalid config format in '" .. targetConfig .. "'"
+            ConfigStatusLabel.TextColor3 = Color3.fromRGB(240, 90, 90)
+        end
+        return false
+    end
+
+    if data.AutoCheckout ~= nil and ToggleRefs.AutoCheckout then
+        ToggleRefs.AutoCheckout.SetValue(data.AutoCheckout)
+    end
+    if data.AutoTeleportWalkers ~= nil and ToggleRefs.AutoTeleportWalkers then
+        ToggleRefs.AutoTeleportWalkers.SetValue(data.AutoTeleportWalkers)
+    end
+    if data.AutoPamphlets ~= nil and ToggleRefs.AutoPamphlets then
+        ToggleRefs.AutoPamphlets.SetValue(data.AutoPamphlets)
+    end
+    if data.AutoGrabPamphlets ~= nil and ToggleRefs.AutoGrabPamphlets then
+        ToggleRefs.AutoGrabPamphlets.SetValue(data.AutoGrabPamphlets)
+    end
+    if data.AutoPetCare ~= nil and ToggleRefs.AutoPetCare then
+        ToggleRefs.AutoPetCare.SetValue(data.AutoPetCare)
+    end
+    if data.AutoCleanMesses ~= nil and ToggleRefs.AutoCleanMesses then
+        ToggleRefs.AutoCleanMesses.SetValue(data.AutoCleanMesses)
+    end
+    if data.AutoBatThieves ~= nil and ToggleRefs.AutoBatThieves then
+        ToggleRefs.AutoBatThieves.SetValue(data.AutoBatThieves)
+    end
+    if data.ToggleKey and KeybindRef then
+        local code = Enum.KeyCode[data.ToggleKey]
+        if code then KeybindRef.SetKey(code) end
+    end
+    if data.AutoLoadConfig ~= nil and ToggleRefs.AutoLoadConfig then
+        ToggleRefs.AutoLoadConfig.SetValue(data.AutoLoadConfig)
+    end
+
+    activeConfig = targetConfig
+    if ConfigDropdownRef then ConfigDropdownRef.SetSelected(activeConfig) end
+    ConfigStatusLabel.Text = "✅ Loaded config: " .. activeConfig
+    ConfigStatusLabel.TextColor3 = Color3.fromRGB(0, 230, 150)
+    return true
+end
+
+local function resetConfig()
+    if ToggleRefs.AutoCheckout then ToggleRefs.AutoCheckout.SetValue(false) end
+    if ToggleRefs.AutoTeleportWalkers then ToggleRefs.AutoTeleportWalkers.SetValue(false) end
+    if ToggleRefs.AutoPamphlets then ToggleRefs.AutoPamphlets.SetValue(false) end
+    if ToggleRefs.AutoGrabPamphlets then ToggleRefs.AutoGrabPamphlets.SetValue(false) end
+    if ToggleRefs.AutoPetCare then ToggleRefs.AutoPetCare.SetValue(false) end
+    if ToggleRefs.AutoCleanMesses then ToggleRefs.AutoCleanMesses.SetValue(false) end
+    if ToggleRefs.AutoBatThieves then ToggleRefs.AutoBatThieves.SetValue(false) end
+    if KeybindRef then KeybindRef.SetKey(Enum.KeyCode.RightControl) end
+    local fileName = getConfigFileName(activeConfig)
+    if delfile and isfile and isfile(fileName) then
+        pcall(function() delfile(fileName) end)
+    end
+    ConfigStatusLabel.Text = "🔄 Reset config '" .. activeConfig .. "' to defaults"
+    ConfigStatusLabel.TextColor3 = Color3.fromRGB(160, 180, 210)
+end
+
+saveBtn.MouseButton1Click:Connect(saveConfig)
+loadBtn.MouseButton1Click:Connect(function() loadConfig(activeConfig, false) end)
+resetBtn.MouseButton1Click:Connect(resetConfig)
+
+-- Auto-load on launch if enabled
+task.spawn(function()
+    task.wait(0.2)
+    local fileName = getConfigFileName("default")
+    if isfile and isfile(fileName) then
+        loadConfig("default", true)
+    end
 end)
 
 local isUIOpen = false
@@ -849,48 +1500,67 @@ end)
 switchTab("Register")
 
 -- ==========================================
--- LOADING SEQUENCE WITH ANIMATED PROGRESS BAR
+-- SHOWCASE & INITIATION STARTUP SEQUENCE
 -- ==========================================
 task.spawn(function()
-    local playerName = LocalPlayer.DisplayName or LocalPlayer.Name
-    local steps = {
-        { pct = 8,  text = "Verifying security handshake...", delay = 0.55 },
-        { pct = 22, text = "Connecting to game network remotes...", delay = 0.65 },
-        { pct = 38, text = "Mapping cash register & plot items...", delay = 0.60 },
-        { pct = 52, text = "Scanning store enclosures & mess nodes...", delay = 0.55 },
-        { pct = 68, text = "Calibrating real-time pedestrian tracker...", delay = 0.70 },
-        { pct = 84, text = "Optimizing flyer teleport algorithms...", delay = 0.60 },
-        { pct = 95, text = "Injecting automation routines...", delay = 0.65 },
-        { pct = 100, text = "Ready! Welcome, " .. playerName .. ".", delay = 0.85 }
-    }
+    local launched = false
 
-    for _, step in ipairs(steps) do
-        SplashStatus.Text = step.text
-        SplashPercent.Text = step.pct .. "%"
-        TweenService:Create(BarFill, TweenInfo.new(step.delay * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Size = UDim2.new(step.pct / 100, 0, 1, 0)
-        }):Play()
-        task.wait(step.delay)
-    end
+    -- 1. Pop in Supported Games Catalog with smooth Cyber spring animation
+    TweenService:Create(CatalogScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+    TweenService:Create(CatalogModal, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { GroupTransparency = 0 }):Play()
 
-    task.wait(0.5)
-    -- Smooth fade out
-    TweenService:Create(Splash, TweenInfo.new(0.35), { Position = UDim2.new(0.5, -210, 0.38, -110), BackgroundTransparency = 1 }):Play()
-    TweenService:Create(SplashStroke, TweenInfo.new(0.35), { Transparency = 1 }):Play()
-    for _, desc in ipairs(Splash:GetDescendants()) do
-        if desc:IsA("TextLabel") or desc:IsA("Frame") then
-            TweenService:Create(desc, TweenInfo.new(0.35), { BackgroundTransparency = 1 }):Play()
-            if desc:IsA("TextLabel") then
-                TweenService:Create(desc, TweenInfo.new(0.35), { TextTransparency = 1 }):Play()
-            end
+    triggerInitiationLoad = function()
+        if launched then return end
+        launched = true
+
+        -- Smoothly fade out and shrink Catalog
+        TweenService:Create(CatalogScale, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.88 }):Play()
+        local tCatalogOut = TweenService:Create(CatalogModal, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { GroupTransparency = 1 })
+        tCatalogOut:Play()
+        tCatalogOut.Completed:Wait()
+        CatalogModal:Destroy()
+
+        -- 2. Pop in Cinematic Initiation Loading Screen
+        Splash.Visible = true
+        TweenService:Create(SplashScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+        TweenService:Create(Splash, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { GroupTransparency = 0 }):Play()
+
+        local playerName = LocalPlayer.DisplayName or LocalPlayer.Name
+        local steps = {
+            { pct = 8,  text = "Verifying security handshake...", delay = 0.55 },
+            { pct = 22, text = "Connecting to game network remotes...", delay = 0.65 },
+            { pct = 38, text = "Mapping cash register & plot items...", delay = 0.60 },
+            { pct = 52, text = "Scanning store enclosures & mess nodes...", delay = 0.55 },
+            { pct = 68, text = "Calibrating real-time pedestrian tracker...", delay = 0.70 },
+            { pct = 84, text = "Optimizing flyer teleport algorithms...", delay = 0.60 },
+            { pct = 95, text = "Injecting automation routines...", delay = 0.65 },
+            { pct = 100, text = "Ready! Welcome, " .. playerName .. ".", delay = 0.85 }
+        }
+
+        for _, step in ipairs(steps) do
+            SplashStatus.Text = step.text
+            SplashPercent.Text = step.pct .. "%"
+            TweenService:Create(BarFill, TweenInfo.new(step.delay * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = UDim2.new(step.pct / 100, 0, 1, 0)
+            }):Play()
+            task.wait(step.delay)
         end
+
+        task.wait(0.5)
+
+        -- Smoothly fade out Splash
+        TweenService:Create(SplashScale, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.88 }):Play()
+        local tSplashOut = TweenService:Create(Splash, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { GroupTransparency = 1 })
+        tSplashOut:Play()
+        tSplashOut.Completed:Wait()
+        Splash:Destroy()
+
+        -- 3. Pop in Main Dashboard with smooth spring transition
+        setUIVisibility(true)
     end
 
-    task.wait(0.35)
-    Splash:Destroy()
-
-    -- Pop in main dashboard with smooth transition
-    setUIVisibility(true)
+    LaunchBtn.MouseButton1Click:Connect(triggerInitiationLoad)
+    CountdownLabel.Text = "Select a game to launch automation..."
 end)
 
 -- ==========================================
@@ -987,32 +1657,68 @@ RunService.Heartbeat:Connect(function()
     end
 
     -- 2. PET CARE
-    if Config.AutoPetCare and plot then
+    if Config.AutoPetCare then
         local now = tick()
-        if now - Config.LastCareTime >= 3.0 then
+        if now - Config.LastCareTime >= 2.0 then
             Config.LastCareTime = now
-            for _, desc in ipairs(plot:GetDescendants()) do
-                if desc:IsA("Model") and (desc:GetAttribute("EnclosureId") or desc:GetAttribute("PenId")) then
-                    pcall(function()
-                        MaintainRE:FireServer(desc, "Feed")
-                        MaintainRE:FireServer(desc, "Water")
-                        MaintainRE:FireServer(desc, "Filter")
-                    end)
+            -- Search plot and workspace for enclosure / pen models
+            local targets = {}
+            if plot then
+                for _, desc in ipairs(plot:GetDescendants()) do
+                    if desc:IsA("Model") or desc:IsA("Folder") or desc:IsA("BasePart") then
+                        local n = desc.Name:lower()
+                        if n:find("enclosure") or n:find("pen") or n:find("cage") or desc:GetAttribute("EnclosureId") or desc:GetAttribute("PenId") then
+                            table.insert(targets, desc)
+                        end
+                    end
                 end
+            end
+            for _, desc in ipairs(workspace:GetDescendants()) do
+                if desc:IsA("Model") and (desc.Name:lower():find("enclosure") or desc.Name:lower():find("pen")) then
+                    if not table.find(targets, desc) then table.insert(targets, desc) end
+                end
+            end
+
+            for _, target in ipairs(targets) do
+                pcall(function()
+                    MaintainRE:FireServer(target, "Feed")
+                    MaintainRE:FireServer(target, "Water")
+                    MaintainRE:FireServer(target, "Clean")
+                    MaintainRE:FireServer(target, "Filter")
+                    MaintainRE:FireServer(target, "Restock")
+                    MaintainRE:FireServer(target)
+                end)
             end
         end
     end
 
     -- 3. CLEAN MESSES
-    if Config.AutoCleanMesses and plot and hrp then
+    if Config.AutoCleanMesses then
         local now = tick()
-        if now - Config.LastCleanTime >= 1.0 then
+        if now - Config.LastCleanTime >= 0.5 then
             Config.LastCleanTime = now
-            local messesFolder = plot:FindFirstChild("Messes")
-            if messesFolder then
-                for _, mess in ipairs(messesFolder:GetChildren()) do
-                    pcall(function() CleanMessRE:FireServer(mess) end)
+            local messes = {}
+            if plot then
+                for _, desc in ipairs(plot:GetDescendants()) do
+                    local n = desc.Name:lower()
+                    if n:find("mess") or n:find("spill") or n:find("poop") or n:find("stain") or n:find("dirt") or desc:GetAttribute("IsMess") or desc:GetAttribute("MessId") then
+                        table.insert(messes, desc)
+                    end
                 end
+            end
+            -- Also check global workspace for mess folders or items
+            for _, desc in ipairs(workspace:GetDescendants()) do
+                local n = desc.Name:lower()
+                if (n:find("mess") or n:find("spill") or n:find("poop")) and not n:find("controller") and not n:find("remote") then
+                    if not table.find(messes, desc) then table.insert(messes, desc) end
+                end
+            end
+
+            for _, mess in ipairs(messes) do
+                pcall(function()
+                    CleanMessRE:FireServer(mess)
+                    CleanMessRE:FireServer(mess.Parent)
+                end)
             end
         end
     end
