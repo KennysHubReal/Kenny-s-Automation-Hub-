@@ -3,7 +3,7 @@
     By Kenny
     - Prominent animated loading bar sequence on start
     - Precision Auto-Pamphlet Delivery (Fast nearest-walker sorting, zero misses)
-    - Full features: Auto-Checkout, Store & Pets, Security, Player Boosts
+    - Full features: Auto-Checkout, Settings Profile/Config Management
 --]]
 
 local TweenService = game:GetService("TweenService")
@@ -71,15 +71,6 @@ local Config = {
     LastPamphletTime = 0,
     LastGrabTime = 0,
     LastTeleportTime = 0,
-
-    AutoPetCare = false,
-    LastCareTime = 0,
-
-    AutoCleanMesses = false,
-    LastCleanTime = 0,
-
-    AutoBatThieves = false,
-    LastSwingTime = 0,
 
     ToggleKey = Enum.KeyCode.RightControl,
     AutoLoadConfig = true
@@ -386,6 +377,7 @@ CountdownLabel.TextXAlignment = Enum.TextXAlignment.Left
 CountdownLabel.Parent = BottomBar
 
 local LaunchBtn = Instance.new("TextButton")
+LaunchBtn.Name = "LaunchBtn"
 LaunchBtn.Text = "Launch Hub ▶"
 LaunchBtn.Font = Enum.Font.GothamBold
 LaunchBtn.TextSize = 12
@@ -709,7 +701,6 @@ local function switchTab(selected)
     if currentTab == selected then return end
     currentTab = selected
 
-    -- Animate Tab Buttons
     for name, btn in pairs(TabButtons) do
         if name == selected then
             TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -724,7 +715,6 @@ local function switchTab(selected)
         end
     end
 
-    -- Hide all other tabs immediately so they never overlay
     for name, _ in pairs(TabButtons) do
         local container = Tabs[name .. "_Container"]
         if container then
@@ -735,7 +725,6 @@ local function switchTab(selected)
         end
     end
 
-    -- Animate selected tab smoothly in
     local targetContainer = Tabs[selected .. "_Container"]
     if targetContainer then
         targetContainer.Position = UDim2.new(0, 10, 0, 18)
@@ -1406,7 +1395,7 @@ resetBtn.MouseButton1Click:Connect(resetConfig)
 -- Auto-load on launch if enabled
 task.spawn(function()
     task.wait(0.2)
-    local fileName = getProfileFileName("default")
+    local fileName = getConfigFileName("default")
     if isfile and isfile(fileName) then
         loadConfig("default", true)
     end
@@ -1475,6 +1464,32 @@ end)
 
 CloseBtn.MouseButton1Click:Connect(function()
     setUIVisibility(false)
+end)
+
+-- Draggable Logic
+local dragging, dragInput, dragStart, startPos
+Topbar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Main.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+
+Topbar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
 end)
 
 switchTab("Register")
