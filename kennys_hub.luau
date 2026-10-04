@@ -267,15 +267,20 @@ BarGrad.Parent = BarFill
 -- ==========================================
 -- MAIN HUD WINDOW
 -- ==========================================
-local Main = Instance.new("Frame")
+local Main = Instance.new("CanvasGroup")
 Main.Name = "MainFrame"
 Main.Size = UDim2.new(0, 530, 0, 350)
 Main.Position = UDim2.new(0.5, -265, 0.45, -175)
 Main.BackgroundColor3 = Color3.fromRGB(13, 16, 24)
 Main.BorderSizePixel = 0
 Main.Visible = false
+Main.GroupTransparency = 1
 Main.ClipsDescendants = true
 Main.Parent = ScreenGui
+
+local MainScale = Instance.new("UIScale")
+MainScale.Scale = 0.85
+MainScale.Parent = Main
 
 local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 14)
@@ -326,14 +331,29 @@ AuthorTag.Size = UDim2.new(0, 280, 0, 14)
 AuthorTag.TextXAlignment = Enum.TextXAlignment.Left
 AuthorTag.Parent = Topbar
 
+local MinBtn = Instance.new("TextButton")
+MinBtn.Text = "—"
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.TextSize = 13
+MinBtn.TextColor3 = Color3.fromRGB(160, 175, 200)
+MinBtn.BackgroundColor3 = Color3.fromRGB(27, 33, 47)
+MinBtn.Size = UDim2.new(0, 26, 0, 26)
+MinBtn.Position = UDim2.new(1, -66, 0, 9)
+MinBtn.BorderSizePixel = 0
+MinBtn.Parent = Topbar
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 6)
+MinCorner.Parent = MinBtn
+
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Text = "—"
+CloseBtn.Text = "✕"
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 14
-CloseBtn.TextColor3 = Color3.fromRGB(160, 175, 200)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(27, 33, 47)
-CloseBtn.Size = UDim2.new(0, 28, 0, 28)
-CloseBtn.Position = UDim2.new(1, -38, 0, 8)
+CloseBtn.TextSize = 12
+CloseBtn.TextColor3 = Color3.fromRGB(230, 100, 100)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(36, 24, 30)
+CloseBtn.Size = UDim2.new(0, 26, 0, 26)
+CloseBtn.Position = UDim2.new(1, -34, 0, 9)
 CloseBtn.BorderSizePixel = 0
 CloseBtn.Parent = Topbar
 
@@ -761,8 +781,44 @@ createKeybind(Tabs["Settings"], "Toggle UI Keybind", Config.ToggleKey, function(
     Config.ToggleKey = newKey
 end)
 
+local isUIOpen = false
+local uiTweening = false
+
+local function setUIVisibility(visible)
+    if uiTweening then return end
+    uiTweening = true
+    if visible then
+        isUIOpen = true
+        Main.Visible = true
+        Main.Position = UDim2.new(0.5, -265, 0.45, -175)
+        Main.Size = UDim2.new(0, 530, 0, 350)
+        MainScale.Scale = 0.82
+        Main.GroupTransparency = 1
+        
+        local tScale = TweenService:Create(MainScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+        local tAlpha = TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { GroupTransparency = 0 })
+        tScale:Play()
+        tAlpha:Play()
+        tScale.Completed:Connect(function()
+            uiTweening = false
+        end)
+    else
+        isUIOpen = false
+        local tScale = TweenService:Create(MainScale, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.85 })
+        local tAlpha = TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { GroupTransparency = 1 })
+        tScale:Play()
+        tAlpha:Play()
+        tAlpha.Completed:Connect(function()
+            if not isUIOpen then
+                Main.Visible = false
+            end
+            uiTweening = false
+        end)
+    end
+end
+
 local function toggleUI()
-    Main.Visible = not Main.Visible
+    setUIVisibility(not isUIOpen)
 end
 
 UserInputService.InputBegan:Connect(function(input, processed)
@@ -773,17 +829,21 @@ UserInputService.InputBegan:Connect(function(input, processed)
     end
 end)
 
--- Minimize Button
+-- Window Control Buttons
 local isMinimized = false
-CloseBtn.MouseButton1Click:Connect(function()
+MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     if isMinimized then
-        CloseBtn.Text = "+"
+        MinBtn.Text = "+"
         TweenService:Create(Main, TweenInfo.new(0.2), { Size = UDim2.new(0, 530, 0, 44) }):Play()
     else
-        CloseBtn.Text = "—"
+        MinBtn.Text = "—"
         TweenService:Create(Main, TweenInfo.new(0.2), { Size = UDim2.new(0, 530, 0, 350) }):Play()
     end
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    setUIVisibility(false)
 end)
 
 switchTab("Register")
@@ -829,14 +889,8 @@ task.spawn(function()
     task.wait(0.35)
     Splash:Destroy()
 
-    -- Pop in main dashboard
-    Main.Visible = true
-    Main.Size = UDim2.new(0, 530, 0, 0)
-    Main.Position = UDim2.new(0.5, -265, 0.45, 0)
-    TweenService:Create(Main, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, 530, 0, 350),
-        Position = UDim2.new(0.5, -265, 0.45, -175)
-    }):Play()
+    -- Pop in main dashboard with smooth transition
+    setUIVisibility(true)
 end)
 
 -- ==========================================
