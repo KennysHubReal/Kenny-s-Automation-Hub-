@@ -281,6 +281,12 @@ local SupportedGames = {
         PlaceId = 118845698633260,
         Icon = "rbxassetid://99408848325145",
         IsCurrent = true
+    },
+    {
+        Name = "DOORS 👁️",
+        PlaceId = 6516141723,
+        Icon = "rbxassetid://10642939103",
+        IsCurrent = false
     }
 }
 
@@ -1709,5 +1715,6 @@ end)
 
 print("[Kenny's Automation Hub] V2 Deployed!")
 return true
+
 
 
