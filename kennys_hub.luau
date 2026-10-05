@@ -26,22 +26,22 @@ for _, old in ipairs(parentGui:GetChildren()) do
     end
 end
 
--- Remotes & Modules
-local Modules = ReplicatedStorage:WaitForChild("Modules")
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+-- Remotes & Modules (Safe optional loading for multi-game compatibility)
+local Modules = ReplicatedStorage:FindFirstChild("Modules")
+local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
 
-local Checkout = Remotes:FindFirstChild("Checkout")
-local PamphletsRemotes = Remotes:FindFirstChild("Pamphlets")
-local EnclosuresRemotes = Remotes:FindFirstChild("Enclosures")
-local BatRemotes = Remotes:FindFirstChild("Bat")
-local MessRemotes = Remotes:FindFirstChild("Mess")
+local Checkout = Remotes and Remotes:FindFirstChild("Checkout")
+local PamphletsRemotes = Remotes and Remotes:FindFirstChild("Pamphlets")
+local EnclosuresRemotes = Remotes and Remotes:FindFirstChild("Enclosures")
+local BatRemotes = Remotes and Remotes:FindFirstChild("Bat")
+local MessRemotes = Remotes and Remotes:FindFirstChild("Mess")
 
-local CheckoutController = require(Modules:WaitForChild("CheckoutController"))
-local CheckoutGamepad = require(Modules:WaitForChild("CheckoutGamepad"))
-local CheckoutMoney = require(Modules:WaitForChild("CheckoutMoney"))
-local PedestrianController = require(Modules:WaitForChild("PedestrianController"))
+local CheckoutController = Modules and Modules:FindFirstChild("CheckoutController") and require(Modules.CheckoutController)
+local CheckoutGamepad = Modules and Modules:FindFirstChild("CheckoutGamepad") and require(Modules.CheckoutGamepad)
+local CheckoutMoney = Modules and Modules:FindFirstChild("CheckoutMoney") and require(Modules.CheckoutMoney)
+local PedestrianController = Modules and Modules:FindFirstChild("PedestrianController") and require(Modules.PedestrianController)
 
-local WalkersTable = debug.getupvalue(PedestrianController.walkerNearRay, 1)
+local WalkersTable = (PedestrianController and debug and debug.getupvalue) and pcall(function() return debug.getupvalue(PedestrianController.walkerNearRay, 1) end) or nil
 
 local ScanCurrentRE = Checkout and Checkout:FindFirstChild("ScanCurrent")
 local AcceptPresentedPaymentRE = Checkout and Checkout:FindFirstChild("AcceptPresentedPayment")
@@ -71,6 +71,11 @@ local Config = {
     LastPamphletTime = 0,
     LastGrabTime = 0,
     LastTeleportTime = 0,
+
+    -- DOORS & ESP Settings
+    CoinESP = false,
+    DoorESP = false,
+    ItemESP = false,
 
     ToggleKey = Enum.KeyCode.RightControl,
     AutoLoadConfig = true
@@ -270,21 +275,20 @@ local SupportedGames = {
     {
         Name = "Pet Store Tycoon",
         PlaceId = 118845698633260,
-        Icon = "rbxassetid://99408848325145",
-        IsCurrent = true
+        Icon = "rbxassetid://99408848325145"
     },
     {
         Name = "DOORS 👁️",
+        PlaceIds = { 6839171747, 6516141723 },
         PlaceId = 6516141723,
-        Icon = "rbxassetid://10642939103",
-        IsCurrent = false
+        Icon = "rbxassetid://72899035237636"
     }
 }
 
 local CatalogModal = Instance.new("CanvasGroup")
 CatalogModal.Name = "SupportedGamesCatalog"
-CatalogModal.Size = UDim2.new(0, 520, 0, 220)
-CatalogModal.Position = UDim2.new(0.5, -260, 0.45, -110)
+CatalogModal.Size = UDim2.new(0, 520, 0, 240)
+CatalogModal.Position = UDim2.new(0.5, -260, 0.45, -120)
 CatalogModal.BackgroundColor3 = Color3.fromRGB(11, 13, 19)
 CatalogModal.BorderSizePixel = 0
 CatalogModal.GroupTransparency = 1
@@ -324,7 +328,7 @@ CatalogBadge.TextXAlignment = Enum.TextXAlignment.Left
 CatalogBadge.Parent = CatalogModal
 
 local CatalogSub = Instance.new("TextLabel")
-CatalogSub.Text = "SUPPORTED GAMES CATALOG  •  SELECT OR AUTO-LAUNCH"
+CatalogSub.Text = "SUPPORTED GAMES CATALOG  •  SELECT & LAUNCH"
 CatalogSub.Font = Enum.Font.GothamBold
 CatalogSub.TextSize = 10
 CatalogSub.TextColor3 = Color3.fromRGB(0, 210, 255)
@@ -343,7 +347,7 @@ CatalogDiv.Parent = CatalogModal
 
 local GamesScroll = Instance.new("ScrollingFrame")
 GamesScroll.Name = "GamesScroll"
-GamesScroll.Size = UDim2.new(1, -40, 0, 86)
+GamesScroll.Size = UDim2.new(1, -40, 0, 110)
 GamesScroll.Position = UDim2.new(0, 20, 0, 68)
 GamesScroll.BackgroundTransparency = 1
 GamesScroll.BorderSizePixel = 0
@@ -361,15 +365,15 @@ GamesLayout.Parent = GamesScroll
 -- Bottom Action Bar
 local BottomBar = Instance.new("Frame")
 BottomBar.Size = UDim2.new(1, -40, 0, 42)
-BottomBar.Position = UDim2.new(0, 20, 1, -54)
+BottomBar.Position = UDim2.new(0, 20, 1, -50)
 BottomBar.BackgroundTransparency = 1
 BottomBar.Parent = CatalogModal
 
 local CountdownLabel = Instance.new("TextLabel")
-CountdownLabel.Text = "Select a game to launch automation..."
+CountdownLabel.Text = "Selected: DOORS 👁️"
 CountdownLabel.Font = Enum.Font.GothamMedium
 CountdownLabel.TextSize = 11
-CountdownLabel.TextColor3 = Color3.fromRGB(160, 180, 210)
+CountdownLabel.TextColor3 = Color3.fromRGB(0, 210, 255)
 CountdownLabel.BackgroundTransparency = 1
 CountdownLabel.Position = UDim2.new(0, 4, 0, 0)
 CountdownLabel.Size = UDim2.new(1, -150, 1, 0)
@@ -378,7 +382,7 @@ CountdownLabel.Parent = BottomBar
 
 local LaunchBtn = Instance.new("TextButton")
 LaunchBtn.Name = "LaunchBtn"
-LaunchBtn.Text = "Launch Hub ▶"
+LaunchBtn.Text = "Launch Script ▶"
 LaunchBtn.Font = Enum.Font.GothamBold
 LaunchBtn.TextSize = 12
 LaunchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -400,15 +404,43 @@ LaunchGrad.Color = ColorSequence.new{
 LaunchGrad.Parent = LaunchBtn
 
 local triggerInitiationLoad
+local selectedGameData = nil
+local cardSelectUpdateFuncs = {}
+
+local function startInitiation()
+    if triggerInitiationLoad then
+        triggerInitiationLoad()
+    end
+end
+
+LaunchBtn.MouseButton1Click:Connect(startInitiation)
+
+-- Determine initial selected game based on current PlaceId
+for _, gameData in ipairs(SupportedGames) do
+    local isMatch = (game.PlaceId == gameData.PlaceId)
+    if gameData.PlaceIds then
+        for _, pid in ipairs(gameData.PlaceIds) do
+            if game.PlaceId == pid then
+                isMatch = true
+                break
+            end
+        end
+    end
+    if isMatch then
+        selectedGameData = gameData
+        break
+    end
+end
+if not selectedGameData then
+    selectedGameData = SupportedGames[2] or SupportedGames[1]
+end
 
 for i, gameData in ipairs(SupportedGames) do
-    local isCurrent = (game.PlaceId == gameData.PlaceId) or (gameData.Name == "Pet Store Tycoon")
-    
     local card = Instance.new("TextButton")
     card.Name = "GameCard_" .. gameData.Name
     card.Text = ""
-    card.Size = UDim2.new(1, -6, 0, 66)
-    card.BackgroundColor3 = isCurrent and Color3.fromRGB(16, 23, 36) or Color3.fromRGB(14, 17, 26)
+    card.Size = UDim2.new(1, -6, 0, 48)
+    card.BackgroundColor3 = Color3.fromRGB(14, 17, 26)
     card.BorderSizePixel = 0
     card.AutoButtonColor = false
     card.LayoutOrder = i
@@ -419,20 +451,20 @@ for i, gameData in ipairs(SupportedGames) do
     cardCorner.Parent = card
 
     local cardStroke = Instance.new("UIStroke")
-    cardStroke.Color = isCurrent and Color3.fromRGB(0, 210, 255) or Color3.fromRGB(30, 38, 54)
-    cardStroke.Thickness = isCurrent and 1.2 or 1
+    cardStroke.Color = Color3.fromRGB(30, 38, 54)
+    cardStroke.Thickness = 1
     cardStroke.Parent = card
 
     -- Game Icon Thumbnail
     local iconBg = Instance.new("Frame")
-    iconBg.Size = UDim2.new(0, 48, 0, 48)
-    iconBg.Position = UDim2.new(0, 9, 0.5, -24)
+    iconBg.Size = UDim2.new(0, 36, 0, 36)
+    iconBg.Position = UDim2.new(0, 8, 0.5, -18)
     iconBg.BackgroundColor3 = Color3.fromRGB(22, 26, 38)
     iconBg.BorderSizePixel = 0
     iconBg.Parent = card
 
     local iconBgCorner = Instance.new("UICorner")
-    iconBgCorner.CornerRadius = UDim.new(0, 8)
+    iconBgCorner.CornerRadius = UDim.new(0, 6)
     iconBgCorner.Parent = iconBg
 
     local iconImg = Instance.new("ImageLabel")
@@ -442,7 +474,7 @@ for i, gameData in ipairs(SupportedGames) do
     iconImg.Parent = iconBg
 
     local iconImgCorner = Instance.new("UICorner")
-    iconImgCorner.CornerRadius = UDim.new(0, 8)
+    iconImgCorner.CornerRadius = UDim.new(0, 6)
     iconImgCorner.Parent = iconImg
 
     if gameData.PlaceId then
@@ -458,70 +490,75 @@ for i, gameData in ipairs(SupportedGames) do
     local title = Instance.new("TextLabel")
     title.Text = gameData.Name
     title.Font = Enum.Font.GothamBold
-    title.TextSize = 14
+    title.TextSize = 13
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.BackgroundTransparency = 1
-    title.Position = UDim2.new(0, 68, 0, 0)
-    title.Size = UDim2.new(1, -190, 1, 0)
+    title.Position = UDim2.new(0, 52, 0, 0)
+    title.Size = UDim2.new(1, -165, 1, 0)
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = card
 
-    if isCurrent then
-        local cardAction = Instance.new("TextButton")
-        cardAction.Text = "LAUNCH ▶"
-        cardAction.Font = Enum.Font.GothamBold
-        cardAction.TextSize = 11
-        cardAction.TextColor3 = Color3.fromRGB(255, 255, 255)
-        cardAction.BackgroundColor3 = Color3.fromRGB(0, 190, 235)
-        cardAction.Size = UDim2.new(0, 88, 0, 28)
-        cardAction.Position = UDim2.new(1, -98, 0.5, -14)
-        cardAction.BorderSizePixel = 0
-        cardAction.Parent = card
+    -- Select / Selected Action Button
+    local cardAction = Instance.new("TextButton")
+    cardAction.Text = "SELECT"
+    cardAction.Font = Enum.Font.GothamBold
+    cardAction.TextSize = 10
+    cardAction.TextColor3 = Color3.fromRGB(180, 200, 230)
+    cardAction.BackgroundColor3 = Color3.fromRGB(24, 30, 44)
+    cardAction.Size = UDim2.new(0, 84, 0, 26)
+    cardAction.Position = UDim2.new(1, -92, 0.5, -13)
+    cardAction.BorderSizePixel = 0
+    cardAction.Parent = card
 
-        local actionCorner = Instance.new("UICorner")
-        actionCorner.CornerRadius = UDim.new(0, 7)
-        actionCorner.Parent = cardAction
+    local actionCorner = Instance.new("UICorner")
+    actionCorner.CornerRadius = UDim.new(0, 6)
+    actionCorner.Parent = cardAction
 
-        local actionGrad = Instance.new("UIGradient")
-        actionGrad.Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 220, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(140, 70, 255))
-        }
-        actionGrad.Parent = cardAction
+    local actionStroke = Instance.new("UIStroke")
+    actionStroke.Color = Color3.fromRGB(45, 56, 80)
+    actionStroke.Thickness = 1
+    actionStroke.Parent = cardAction
 
-        cardAction.MouseButton1Click:Connect(function()
-            if triggerInitiationLoad then triggerInitiationLoad() end
-        end)
-        card.MouseButton1Click:Connect(function()
-            if triggerInitiationLoad then triggerInitiationLoad() end
-        end)
-    else
-        local badge = Instance.new("Frame")
-        badge.Size = UDim2.new(0, 96, 0, 24)
-        badge.Position = UDim2.new(1, -106, 0.5, -12)
-        badge.BackgroundColor3 = Color3.fromRGB(32, 22, 42)
-        badge.BorderSizePixel = 0
-        badge.Parent = card
-
-        local badgeCorner = Instance.new("UICorner")
-        badgeCorner.CornerRadius = UDim.new(0, 6)
-        badgeCorner.Parent = badge
-
-        local badgeStroke = Instance.new("UIStroke")
-        badgeStroke.Color = Color3.fromRGB(150, 90, 230)
-        badgeStroke.Thickness = 1
-        badgeStroke.Parent = badge
-
-        local badgeText = Instance.new("TextLabel")
-        badgeText.Text = "⏳ COMING SOON"
-        badgeText.Font = Enum.Font.GothamBold
-        badgeText.TextSize = 9
-        badgeText.TextColor3 = Color3.fromRGB(190, 140, 255)
-        badgeText.BackgroundTransparency = 1
-        badgeText.Size = UDim2.new(1, 0, 1, 0)
-        badgeText.Parent = badge
+    local function updateSelectionUI()
+        local isSelected = (selectedGameData == gameData)
+        if isSelected then
+            card.BackgroundColor3 = Color3.fromRGB(16, 26, 42)
+            cardStroke.Color = Color3.fromRGB(0, 210, 255)
+            cardStroke.Thickness = 1.2
+            cardAction.Text = "✓ SELECTED"
+            cardAction.TextColor3 = Color3.fromRGB(255, 255, 255)
+            cardAction.BackgroundColor3 = Color3.fromRGB(0, 180, 230)
+            actionStroke.Color = Color3.fromRGB(0, 220, 255)
+        else
+            card.BackgroundColor3 = Color3.fromRGB(14, 17, 26)
+            cardStroke.Color = Color3.fromRGB(30, 38, 54)
+            cardStroke.Thickness = 1
+            cardAction.Text = "SELECT"
+            cardAction.TextColor3 = Color3.fromRGB(160, 180, 210)
+            cardAction.BackgroundColor3 = Color3.fromRGB(22, 28, 40)
+            actionStroke.Color = Color3.fromRGB(40, 50, 70)
+        end
     end
+
+    table.insert(cardSelectUpdateFuncs, updateSelectionUI)
+
+    local function onSelectClicked()
+        selectedGameData = gameData
+        CountdownLabel.Text = "Selected: " .. gameData.Name
+        for _, updateFn in ipairs(cardSelectUpdateFuncs) do
+            updateFn()
+        end
+    end
+
+    cardAction.MouseButton1Click:Connect(onSelectClicked)
+    card.MouseButton1Click:Connect(onSelectClicked)
 end
+
+for _, updateFn in ipairs(cardSelectUpdateFuncs) do
+    updateFn()
+end
+
+local isDoorsGame = (game.PlaceId == 6839171747 or game.PlaceId == 6516141723)
 
 -- ==========================================
 -- MAIN HUD WINDOW
@@ -580,7 +617,7 @@ AppTitle.TextXAlignment = Enum.TextXAlignment.Left
 AppTitle.Parent = Topbar
 
 local AuthorTag = Instance.new("TextLabel")
-AuthorTag.Text = "BY KENNY  •  PET STORE TYCOON"
+AuthorTag.Text = "BY KENNY  •  " .. (isDoorsGame and "DOORS 👁️" or "PET STORE TYCOON")
 AuthorTag.Font = Enum.Font.GothamMedium
 AuthorTag.TextSize = 9
 AuthorTag.TextColor3 = Color3.fromRGB(0, 210, 255)
@@ -648,6 +685,7 @@ end)
 
 -- Sidebar Tabs
 local Sidebar = Instance.new("Frame")
+Sidebar.Name = "Sidebar"
 Sidebar.Size = UDim2.new(0, 130, 1, -44)
 Sidebar.Position = UDim2.new(0, 0, 0, 44)
 Sidebar.BackgroundColor3 = Color3.fromRGB(16, 19, 29)
@@ -655,23 +693,25 @@ Sidebar.BorderSizePixel = 0
 Sidebar.Parent = Main
 
 local Content = Instance.new("Frame")
+Content.Name = "Content"
 Content.Size = UDim2.new(1, -130, 1, -44)
 Content.Position = UDim2.new(0, 130, 0, 44)
 Content.BackgroundTransparency = 1
 Content.Parent = Main
 
+
+
 local Tabs = {}
 local TabButtons = {}
-local TabNames = { "Register", "Pamphlets", "Settings" }
+local TabNames = isDoorsGame and { "DOORS", "ESP", "Settings" } or { "Register", "Pamphlets", "Settings" }
 
 local function createTabContent(name)
-    local page = Instance.new("CanvasGroup")
+    local page = Instance.new("Frame")
     page.Name = name .. "Page"
     page.Size = UDim2.new(1, -20, 1, -20)
     page.Position = UDim2.new(0, 10, 0, 10)
     page.BackgroundTransparency = 1
     page.BorderSizePixel = 0
-    page.GroupTransparency = 0
     page.Visible = false
     page.Parent = Content
 
@@ -701,40 +741,34 @@ local function switchTab(selected)
     if currentTab == selected then return end
     currentTab = selected
 
-    for name, btn in pairs(TabButtons) do
-        if name == selected then
-            TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                BackgroundColor3 = Color3.fromRGB(0, 180, 255),
-                TextColor3 = Color3.fromRGB(255, 255, 255)
-            }):Play()
-        else
-            TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                BackgroundColor3 = Color3.fromRGB(22, 26, 38),
-                TextColor3 = Color3.fromRGB(150, 165, 185)
-            }):Play()
+    for _, name in ipairs(TabNames) do
+        local btn = TabButtons[name]
+        if btn then
+            if name == selected then
+                TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    BackgroundColor3 = Color3.fromRGB(0, 180, 255),
+                    TextColor3 = Color3.fromRGB(255, 255, 255)
+                }):Play()
+            else
+                TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    BackgroundColor3 = Color3.fromRGB(22, 26, 38),
+                    TextColor3 = Color3.fromRGB(150, 165, 185)
+                }):Play()
+            end
         end
-    end
 
-    for name, _ in pairs(TabButtons) do
         local container = Tabs[name .. "_Container"]
         if container then
             if name ~= selected then
                 container.Visible = false
-                container.GroupTransparency = 1
             end
         end
     end
 
     local targetContainer = Tabs[selected .. "_Container"]
     if targetContainer then
-        targetContainer.Position = UDim2.new(0, 10, 0, 18)
-        targetContainer.GroupTransparency = 1
+        targetContainer.Position = UDim2.new(0, 10, 0, 10)
         targetContainer.Visible = true
-
-        TweenService:Create(targetContainer, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Position = UDim2.new(0, 10, 0, 10),
-            GroupTransparency = 0
-        }):Play()
     end
 end
 
@@ -757,11 +791,11 @@ for i, name in ipairs(TabNames) do
     btnCorner.CornerRadius = UDim.new(0, 6)
     btnCorner.Parent = btn
 
+    TabButtons[name] = btn
+
     btn.MouseButton1Click:Connect(function()
         switchTab(name)
     end)
-
-    TabButtons[name] = btn
 end
 
 -- ==========================================
@@ -1148,44 +1182,113 @@ end
 -- ==========================================
 -- POPULATE PAGES
 -- ==========================================
--- 1. Register Page
-local RegisterStatusLabel = createStatusCard(Tabs["Register"], "CASHIER SYSTEM STATUS", "Manning Register • Waiting for Customer")
+if isDoorsGame then
+    -- DOORS Page
+    local DoorsStatusLabel = createStatusCard(Tabs["DOORS"], "DOORS 👁️ AUTOMATION SUITE", "Connected • Monitoring Entities & Rooms")
 
-ToggleRefs.AutoCheckout = createToggle(Tabs["Register"], "Auto Checkout (Scan & Pay)", Config.AutoCheckout, function(val)
-    Config.AutoCheckout = val
-end)
+    createToggle(Tabs["DOORS"], "FullBright / Eliminate Dark Fog", true, function(val)
+        local Lighting = game:GetService("Lighting")
+        if val then
+            Lighting.Ambient = Color3.new(1, 1, 1)
+            Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+            Lighting.FogEnd = 999999
+        else
+            Lighting.Ambient = Color3.new(0, 0, 0)
+            Lighting.OutdoorAmbient = Color3.new(0, 0, 0)
+            Lighting.FogEnd = 500
+        end
+    end)
 
-createActionBtn(Tabs["Register"], "⚡ Hop On Register (Auto E)", Color3.fromRGB(0, 140, 230), function()
-    local plot = getMyPlot()
-    local till = plot and plot:FindFirstChild("Checkout")
-    enterRegister(till)
-end)
+    createToggle(Tabs["DOORS"], "Speed Boost (WalkSpeed 22)", false, function(val)
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = val and 22 or 16
+        end
+    end)
 
--- 2. Pamphlet Page
-local PamphletStatusLabel = createStatusCard(Tabs["Pamphlets"], "PAMPHLET STATUS", "Count: 0 | Idle")
+    createToggle(Tabs["DOORS"], "Entity Notifier (Rush / Ambush)", true, function(val)
+        -- Placeholder status for notification toggle
+    end)
 
-ToggleRefs.AutoTeleportWalkers = createToggle(Tabs["Pamphlets"], "⚡ Fast Auto-Teleport to Walkers & Give", Config.AutoTeleportWalkers, function(val)
-    Config.AutoTeleportWalkers = val
-    Config.AutoPamphlets = val
-end)
+    createToggle(Tabs["DOORS"], "Instant Proximity Prompt", false, function(val)
+        -- Placeholder toggle
+    end)
 
-ToggleRefs.AutoPamphlets = createToggle(Tabs["Pamphlets"], "Auto-Give Pamphlets (Aura Only)", Config.AutoPamphlets, function(val)
-    Config.AutoPamphlets = val
-end)
+    createActionBtn(Tabs["DOORS"], "⚡ Apply FullBright & Boost Speed Now", Color3.fromRGB(0, 190, 240), function()
+        local Lighting = game:GetService("Lighting")
+        Lighting.Ambient = Color3.new(1, 1, 1)
+        Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+        Lighting.FogEnd = 999999
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = 22 end
+        if DoorsStatusLabel then
+            DoorsStatusLabel.Text = "✅ FullBright & Speed 22 Applied!"
+        end
+    end)
 
-ToggleRefs.AutoGrabPamphlets = createToggle(Tabs["Pamphlets"], "Auto-Refill At Pamphlet Stand", Config.AutoGrabPamphlets, function(val)
-    Config.AutoGrabPamphlets = val
-end)
+    -- ESP Page
+    local EspStatusLabel = createStatusCard(Tabs["ESP"], "VISUAL ESP & HIGHLIGHTS", "Highlights containers, coins, doors, & items")
 
-createActionBtn(Tabs["Pamphlets"], "⚡ Teleport to Stand & Refill", Color3.fromRGB(130, 70, 230), function()
-    local stand = getPamphletStand()
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if stand and hrp then
-        hrp.CFrame = stand:GetPivot() + Vector3.new(0, 3, 0)
-        GrabPamphletRE:FireServer()
-    end
-end)
+    createToggle(Tabs["ESP"], "💰 Coin / Gold ESP (Highlight & Tracer)", Config.CoinESP, function(val)
+        Config.CoinESP = val
+        if not val then
+            for _, folder in ipairs(parentGui:GetChildren()) do
+                if folder.Name == "CoinESPGui" then
+                    folder:Destroy()
+                end
+            end
+        end
+    end)
+
+    createToggle(Tabs["ESP"], "🚪 Door ESP (Numbered Door Frames)", Config.DoorESP, function(val)
+        Config.DoorESP = val
+    end)
+
+    createToggle(Tabs["ESP"], "📦 Item & Key ESP", Config.ItemESP, function(val)
+        Config.ItemESP = val
+    end)
+else
+    -- 1. Register Page
+    local RegisterStatusLabel = createStatusCard(Tabs["Register"], "CASHIER SYSTEM STATUS", "Manning Register • Waiting for Customer")
+
+    ToggleRefs.AutoCheckout = createToggle(Tabs["Register"], "Auto Checkout (Scan & Pay)", Config.AutoCheckout, function(val)
+        Config.AutoCheckout = val
+    end)
+
+    createActionBtn(Tabs["Register"], "⚡ Hop On Register (Auto E)", Color3.fromRGB(0, 140, 230), function()
+        local plot = getMyPlot()
+        local till = plot and plot:FindFirstChild("Checkout")
+        enterRegister(till)
+    end)
+
+    -- 2. Pamphlet Page
+    local PamphletStatusLabel = createStatusCard(Tabs["Pamphlets"], "PAMPHLET STATUS", "Count: 0 | Idle")
+
+    ToggleRefs.AutoTeleportWalkers = createToggle(Tabs["Pamphlets"], "⚡ Fast Auto-Teleport to Walkers & Give", Config.AutoTeleportWalkers, function(val)
+        Config.AutoTeleportWalkers = val
+        Config.AutoPamphlets = val
+    end)
+
+    ToggleRefs.AutoPamphlets = createToggle(Tabs["Pamphlets"], "Auto-Give Pamphlets (Aura Only)", Config.AutoPamphlets, function(val)
+        Config.AutoPamphlets = val
+    end)
+
+    ToggleRefs.AutoGrabPamphlets = createToggle(Tabs["Pamphlets"], "Auto-Refill At Pamphlet Stand", Config.AutoGrabPamphlets, function(val)
+        Config.AutoGrabPamphlets = val
+    end)
+
+    createActionBtn(Tabs["Pamphlets"], "⚡ Teleport to Stand & Refill", Color3.fromRGB(130, 70, 230), function()
+        local stand = getPamphletStand()
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if stand and hrp then
+            hrp.CFrame = stand:GetPivot() + Vector3.new(0, 3, 0)
+            GrabPamphletRE:FireServer()
+        end
+    end)
+end
 
 -- 3. Settings Page
 createStatusCard(Tabs["Settings"], "HUB SETTINGS & KEYBINDS", "Customize hotkeys and menu controls")
@@ -1492,7 +1595,7 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-switchTab("Register")
+switchTab(isDoorsGame and "DOORS" or "Register")
 
 -- ==========================================
 -- SHOWCASE & INITIATION STARTUP SEQUENCE
@@ -1567,10 +1670,10 @@ RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local plot = getMyPlot()
-    local till = CheckoutController.getMannedTill() or (plot and plot:FindFirstChild("Checkout"))
-    local isManning = CheckoutController.isManning()
-    local state = CheckoutController.getState()
+    local plot = (getMyPlot and getMyPlot()) or nil
+    local till = (CheckoutController and CheckoutController.getMannedTill and CheckoutController.getMannedTill()) or (plot and plot:FindFirstChild("Checkout"))
+    local isManning = CheckoutController and CheckoutController.isManning and CheckoutController.isManning()
+    local state = CheckoutController and CheckoutController.getState and CheckoutController.getState()
     local pamphletCount = LocalPlayer:GetAttribute("Pamphlets") or 0
 
     -- 1. PAMPHLETS
@@ -1716,6 +1819,65 @@ RunService.Heartbeat:Connect(function()
                 RegisterStatusLabel.Text = "✅ Sale Complete! Next customer..."
             else
                 RegisterStatusLabel.Text = "Manning register • Waiting for customer"
+            end
+        end
+    end
+
+    -- 3. DOORS COIN ESP REALTIME LOOP
+    if Config.CoinESP and isDoorsGame and hrp then
+        local currentRooms = workspace:FindFirstChild("CurrentRooms")
+        if currentRooms then
+            for _, room in ipairs(currentRooms:GetChildren()) do
+                for _, desc in ipairs(room:GetDescendants()) do
+                    if desc:IsA("Model") or desc:IsA("BasePart") then
+                        local isCoinContainer = false
+                        local labelText = "💰 Coin / Gold"
+
+                        if desc.Name == "GoldPile" or desc.Name == "Gold" or desc.Name == "Coin" or desc.Name == "Stash" or desc.Name:lower():find("goldpile") then
+                            isCoinContainer = true
+                            labelText = "💰 Gold / Coin"
+                        elseif (desc.Name == "Dresser" or desc.Name == "Chest" or desc.Name == "Counter") then
+                            local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            if prompt and (prompt.ActionText:find("Loot") or prompt.ObjectText:find("Drawer") or prompt.ObjectText:find("Chest")) then
+                                isCoinContainer = true
+                                labelText = "💰 Loot Container"
+                            end
+                        end
+
+                        if isCoinContainer then
+                            local targetPart = desc:IsA("BasePart") and desc or desc:FindFirstChildWhichIsA("BasePart")
+                            if targetPart and not targetPart:FindFirstChild("CoinHighlight") then
+                                local hl = Instance.new("Highlight")
+                                hl.Name = "CoinHighlight"
+                                hl.FillColor = Color3.fromRGB(255, 215, 0)
+                                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                                hl.FillTransparency = 0.4
+                                hl.OutlineTransparency = 0.1
+                                hl.Adornee = desc
+                                hl.Parent = targetPart
+
+                                local bg = Instance.new("BillboardGui")
+                                bg.Name = "CoinBillboard"
+                                bg.Size = UDim2.new(0, 100, 0, 30)
+                                bg.AlwaysOnTop = true
+                                bg.ExtentsOffset = Vector3.new(0, 1.5, 0)
+                                bg.Adornee = targetPart
+                                bg.Parent = targetPart
+
+                                local txt = Instance.new("TextLabel")
+                                txt.Text = labelText
+                                txt.Font = Enum.Font.GothamBold
+                                txt.TextSize = 11
+                                txt.TextColor3 = Color3.fromRGB(255, 215, 0)
+                                txt.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                                txt.TextStrokeTransparency = 0.2
+                                txt.BackgroundTransparency = 1
+                                txt.Size = UDim2.new(1, 0, 1, 0)
+                                txt.Parent = bg
+                            end
+                        end
+                    end
+                end
             end
         end
     end
