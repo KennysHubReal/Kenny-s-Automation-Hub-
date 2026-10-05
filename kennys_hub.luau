@@ -281,7 +281,8 @@ local SupportedGames = {
         Name = "DOORS 👁️",
         PlaceIds = { 6839171747, 6516141723 },
         PlaceId = 6516141723,
-        Icon = "rbxassetid://72899035237636"
+        Icon = "rbxassetid://72899035237636",
+        IsWIP = true
     }
 }
 
@@ -370,7 +371,7 @@ BottomBar.BackgroundTransparency = 1
 BottomBar.Parent = CatalogModal
 
 local CountdownLabel = Instance.new("TextLabel")
-CountdownLabel.Text = "Selected: DOORS 👁️"
+CountdownLabel.Text = "Selected: Pet Store Tycoon"
 CountdownLabel.Font = Enum.Font.GothamMedium
 CountdownLabel.TextSize = 11
 CountdownLabel.TextColor3 = Color3.fromRGB(0, 210, 255)
@@ -415,24 +416,31 @@ end
 
 LaunchBtn.MouseButton1Click:Connect(startInitiation)
 
--- Determine initial selected game based on current PlaceId
+-- Determine initial selected game based on current PlaceId (skipping WIP)
 for _, gameData in ipairs(SupportedGames) do
-    local isMatch = (game.PlaceId == gameData.PlaceId)
-    if gameData.PlaceIds then
-        for _, pid in ipairs(gameData.PlaceIds) do
-            if game.PlaceId == pid then
-                isMatch = true
-                break
+    if not gameData.IsWIP then
+        local isMatch = (game.PlaceId == gameData.PlaceId)
+        if gameData.PlaceIds then
+            for _, pid in ipairs(gameData.PlaceIds) do
+                if game.PlaceId == pid then
+                    isMatch = true
+                    break
+                end
             end
         end
-    end
-    if isMatch then
-        selectedGameData = gameData
-        break
+        if isMatch then
+            selectedGameData = gameData
+            break
+        end
     end
 end
-if not selectedGameData then
-    selectedGameData = SupportedGames[2] or SupportedGames[1]
+if not selectedGameData or selectedGameData.IsWIP then
+    for _, gameData in ipairs(SupportedGames) do
+        if not gameData.IsWIP then
+            selectedGameData = gameData
+            break
+        end
+    end
 end
 
 for i, gameData in ipairs(SupportedGames) do
@@ -498,60 +506,88 @@ for i, gameData in ipairs(SupportedGames) do
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = card
 
-    -- Select / Selected Action Button
-    local cardAction = Instance.new("TextButton")
-    cardAction.Text = "SELECT"
-    cardAction.Font = Enum.Font.GothamBold
-    cardAction.TextSize = 10
-    cardAction.TextColor3 = Color3.fromRGB(180, 200, 230)
-    cardAction.BackgroundColor3 = Color3.fromRGB(24, 30, 44)
-    cardAction.Size = UDim2.new(0, 84, 0, 26)
-    cardAction.Position = UDim2.new(1, -92, 0.5, -13)
-    cardAction.BorderSizePixel = 0
-    cardAction.Parent = card
+    if gameData.IsWIP then
+        -- Unselectable WIP Badge
+        local badge = Instance.new("Frame")
+        badge.Size = UDim2.new(0, 72, 0, 24)
+        badge.Position = UDim2.new(1, -82, 0.5, -12)
+        badge.BackgroundColor3 = Color3.fromRGB(36, 26, 20)
+        badge.BorderSizePixel = 0
+        badge.Parent = card
 
-    local actionCorner = Instance.new("UICorner")
-    actionCorner.CornerRadius = UDim.new(0, 6)
-    actionCorner.Parent = cardAction
+        local badgeCorner = Instance.new("UICorner")
+        badgeCorner.CornerRadius = UDim.new(0, 6)
+        badgeCorner.Parent = badge
 
-    local actionStroke = Instance.new("UIStroke")
-    actionStroke.Color = Color3.fromRGB(45, 56, 80)
-    actionStroke.Thickness = 1
-    actionStroke.Parent = cardAction
+        local badgeStroke = Instance.new("UIStroke")
+        badgeStroke.Color = Color3.fromRGB(230, 140, 50)
+        badgeStroke.Thickness = 1
+        badgeStroke.Parent = badge
 
-    local function updateSelectionUI()
-        local isSelected = (selectedGameData == gameData)
-        if isSelected then
-            card.BackgroundColor3 = Color3.fromRGB(16, 26, 42)
-            cardStroke.Color = Color3.fromRGB(0, 210, 255)
-            cardStroke.Thickness = 1.2
-            cardAction.Text = "✓ SELECTED"
-            cardAction.TextColor3 = Color3.fromRGB(255, 255, 255)
-            cardAction.BackgroundColor3 = Color3.fromRGB(0, 180, 230)
-            actionStroke.Color = Color3.fromRGB(0, 220, 255)
-        else
-            card.BackgroundColor3 = Color3.fromRGB(14, 17, 26)
-            cardStroke.Color = Color3.fromRGB(30, 38, 54)
-            cardStroke.Thickness = 1
-            cardAction.Text = "SELECT"
-            cardAction.TextColor3 = Color3.fromRGB(160, 180, 210)
-            cardAction.BackgroundColor3 = Color3.fromRGB(22, 28, 40)
-            actionStroke.Color = Color3.fromRGB(40, 50, 70)
+        local badgeText = Instance.new("TextLabel")
+        badgeText.Text = "🚧 WIP"
+        badgeText.Font = Enum.Font.GothamBold
+        badgeText.TextSize = 10
+        badgeText.TextColor3 = Color3.fromRGB(255, 170, 70)
+        badgeText.BackgroundTransparency = 1
+        badgeText.Size = UDim2.new(1, 0, 1, 0)
+        badgeText.Parent = badge
+    else
+        -- Select / Selected Action Button
+        local cardAction = Instance.new("TextButton")
+        cardAction.Text = "SELECT"
+        cardAction.Font = Enum.Font.GothamBold
+        cardAction.TextSize = 10
+        cardAction.TextColor3 = Color3.fromRGB(180, 200, 230)
+        cardAction.BackgroundColor3 = Color3.fromRGB(24, 30, 44)
+        cardAction.Size = UDim2.new(0, 84, 0, 26)
+        cardAction.Position = UDim2.new(1, -92, 0.5, -13)
+        cardAction.BorderSizePixel = 0
+        cardAction.Parent = card
+
+        local actionCorner = Instance.new("UICorner")
+        actionCorner.CornerRadius = UDim.new(0, 6)
+        actionCorner.Parent = cardAction
+
+        local actionStroke = Instance.new("UIStroke")
+        actionStroke.Color = Color3.fromRGB(45, 56, 80)
+        actionStroke.Thickness = 1
+        actionStroke.Parent = cardAction
+
+        local function updateSelectionUI()
+            local isSelected = (selectedGameData == gameData)
+            if isSelected then
+                card.BackgroundColor3 = Color3.fromRGB(16, 26, 42)
+                cardStroke.Color = Color3.fromRGB(0, 210, 255)
+                cardStroke.Thickness = 1.2
+                cardAction.Text = "✓ SELECTED"
+                cardAction.TextColor3 = Color3.fromRGB(255, 255, 255)
+                cardAction.BackgroundColor3 = Color3.fromRGB(0, 180, 230)
+                actionStroke.Color = Color3.fromRGB(0, 220, 255)
+            else
+                card.BackgroundColor3 = Color3.fromRGB(14, 17, 26)
+                cardStroke.Color = Color3.fromRGB(30, 38, 54)
+                cardStroke.Thickness = 1
+                cardAction.Text = "SELECT"
+                cardAction.TextColor3 = Color3.fromRGB(160, 180, 210)
+                cardAction.BackgroundColor3 = Color3.fromRGB(22, 28, 40)
+                actionStroke.Color = Color3.fromRGB(40, 50, 70)
+            end
         end
-    end
 
-    table.insert(cardSelectUpdateFuncs, updateSelectionUI)
+        table.insert(cardSelectUpdateFuncs, updateSelectionUI)
 
-    local function onSelectClicked()
-        selectedGameData = gameData
-        CountdownLabel.Text = "Selected: " .. gameData.Name
-        for _, updateFn in ipairs(cardSelectUpdateFuncs) do
-            updateFn()
+        local function onSelectClicked()
+            selectedGameData = gameData
+            CountdownLabel.Text = "Selected: " .. gameData.Name
+            for _, updateFn in ipairs(cardSelectUpdateFuncs) do
+                updateFn()
+            end
         end
-    end
 
-    cardAction.MouseButton1Click:Connect(onSelectClicked)
-    card.MouseButton1Click:Connect(onSelectClicked)
+        cardAction.MouseButton1Click:Connect(onSelectClicked)
+        card.MouseButton1Click:Connect(onSelectClicked)
+    end
 end
 
 for _, updateFn in ipairs(cardSelectUpdateFuncs) do
@@ -1833,15 +1869,9 @@ RunService.Heartbeat:Connect(function()
                         local isCoinContainer = false
                         local labelText = "💰 Coin / Gold"
 
-                        if desc.Name == "GoldPile" or desc.Name == "Gold" or desc.Name == "Coin" or desc.Name == "Stash" or desc.Name:lower():find("goldpile") then
+                        if desc.Name == "GoldPile" or desc.Name == "Gold" or desc.Name == "Coin" or desc.Name == "Stash" or desc.Name == "GoldSmall" or desc.Name == "GoldLarge" or desc.Name:find("Gold") then
                             isCoinContainer = true
-                            labelText = "💰 Gold / Coin"
-                        elseif (desc.Name == "Dresser" or desc.Name == "Chest" or desc.Name == "Counter") then
-                            local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
-                            if prompt and (prompt.ActionText:find("Loot") or prompt.ObjectText:find("Drawer") or prompt.ObjectText:find("Chest")) then
-                                isCoinContainer = true
-                                labelText = "💰 Loot Container"
-                            end
+                            labelText = "💰 Gold Coins"
                         end
 
                         if isCoinContainer then
